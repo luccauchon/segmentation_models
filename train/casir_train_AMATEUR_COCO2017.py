@@ -8,10 +8,9 @@ import os
 os.environ['basedir_a'] = '/gpfs/home/cj3272/tmp/'
 os.environ["CUDA_VISIBLE_DEVICES"] = '3'
 
-
-
 from luccauchon.data.Generators import AmateurDataFrameDataGenerator
 import luccauchon.data.Generators as generators
+import luccauchon.data.C as C
 
 from segmentation_models import Unet
 from segmentation_models import FPN
@@ -53,32 +52,39 @@ print('Using conda env: ' + str(Path(sys.executable).as_posix().split('/')[-3]) 
 
 import keras
 
+TRAIN_AMATEUR = False
 
 BACKBONE = 'inceptionresnetv2'
 BACKBONE = 'seresnet152'
 BACKBONE = 'resnet34'
 
-class_ids = [0, 1]
 dim_image = (256, 256, 3)
-batch_size=18
-number_elements = None
-dataset_dir='/gpfs/groups/gc056/APPRANTI/cj3272/dataset/22FEV2019/GEN_segmentation/'
+batch_size = 18
 
 if BACKBONE == 'seresnet152':
     dim_image = (384, 384, 3)
 
+number_of_classes = 0
 
-categories = ['person']#, 'tie']
-data_dir_source_coco = '/gpfs/home/cj3272/56/APPRANTI/cj3272/dataset/coco/'
-dim_image = (256, 256, 3)
-batch_size = 64
-from luccauchon.data.Generators import COCODataFrameDataGenerator
-train_generator = COCODataFrameDataGenerator(data_dir_source_coco=data_dir_source_coco, categories=categories, batch_size=batch_size, dim_image=dim_image, data_type_source_coco='train2017')
-val_generator = COCODataFrameDataGenerator(data_dir_source_coco=data_dir_source_coco, categories=categories, batch_size=batch_size, dim_image=dim_image, data_type_source_coco='val2017')
+if TRAIN_AMATEUR:
+    class_ids = [0, 1]
+    number_of_classes = len(class_ids)
+    number_elements = None
+    dataset_dir = '/gpfs/groups/gc056/APPRANTI/cj3272/dataset/22FEV2019/GEN_segmentation/'
+    df_train, df_val = generators.amateur_train_val_split(dataset_dir=dataset_dir, class_ids=class_ids, number_elements=number_elements)
+    train_generator = AmateurDataFrameDataGenerator(df_train, classes_id=class_ids, batch_size=batch_size, dim_image=dim_image)
+    val_generator = AmateurDataFrameDataGenerator(df_val, classes_id=class_ids, batch_size=batch_size, dim_image=dim_image)
+else:
+    data_dir_source_coco = '/gpfs/home/cj3272/56/APPRANTI/cj3272/dataset/coco/'
+    data_type_source_coco = 'train2017'
 
-df_train, df_val = generators.amateur_train_val_split(dataset_dir=dataset_dir, class_ids=class_ids, number_elements=number_elements)
-train_generator = AmateurDataFrameDataGenerator(df_train, classes_id=class_ids, batch_size=batch_size, dim_image=dim_image)
-val_generator = AmateurDataFrameDataGenerator(df_val, classes_id=class_ids, batch_size=batch_size, dim_image=dim_image)
+    from luccauchon.data.Generators import COCODataFrameDataGenerator
+
+    train_generator = COCODataFrameDataGenerator(data_dir_source_coco=data_dir_source_coco, batch_size=batch_size, dim_image=dim_image, data_type_source_coco='train2017')
+    val_generator = COCODataFrameDataGenerator(data_dir_source_coco=data_dir_source_coco, batch_size=batch_size, dim_image=dim_image, data_type_source_coco='val2017')
+
+    number_of_classes = len(train_generator.cat_ids)
+    assert len(train_generator.cat_ids) == len(val_generator.cat_ids)
 
 # preprocess input
 # from segmentation_models.backbones import get_preprocessing
@@ -88,13 +94,17 @@ val_generator = AmateurDataFrameDataGenerator(df_val, classes_id=class_ids, batc
 
 # define model
 
-model = Unet(BACKBONE, classes=len(class_ids), encoder_weights='imagenet')
-#model = FPN(BACKBONE, classes=len(class_ids), encoder_weights='imagenet')
-#model = PSPNet(BACKBONE, classes=len(class_ids), encoder_weights='imagenet')
-#model = Linknet(BACKBONE, classes=len(class_ids), encoder_weights='imagenet')
+model = Unet(BACKBONE, classes=number_of_classes, encoder_weights='imagenet')
+# model = FPN(BACKBONE, classes=number_of_classes encoder_weights='imagenet')
+# model = PSPNet(BACKBONE, classes=number_of_classes, encoder_weights='imagenet')
+# model = Linknet(BACKBONE, classes=number_of_classes, encoder_weights='imagenet')
 
 model.compile('Adam', loss=cce_jaccard_loss, metrics=[jaccard_score])
 model.summary()
+
+from keras.utils import plot_model
+
+plot_model(model, to_file='model.png')
 
 modelCheckpoint = keras.callbacks.ModelCheckpoint(filepath='segmod_weights.{epoch:02d}-{val_loss:.4f}.hdf5',
                                                   monitor='val_loss',
@@ -103,12 +113,10 @@ modelCheckpoint = keras.callbacks.ModelCheckpoint(filepath='segmod_weights.{epoc
 reduceLROnPlateau = keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=7, verbose=1,
                                                       mode='auto', min_delta=0.001, cooldown=0, min_lr=10e-7)
 
-
 model.fit_generator(generator=train_generator, steps_per_epoch=None, epochs=10, verbose=2,
                     callbacks=[reduceLROnPlateau, modelCheckpoint],
                     validation_data=val_generator, validation_steps=None, class_weight=None, max_queue_size=10,
                     workers=8, use_multiprocessing=False, shuffle=True, initial_epoch=0)
-
 
 os._exit(0)
 from segmentation_models import Unet
@@ -128,7 +136,7 @@ model.fit_generator(generator=train_generator, steps_per_epoch=None, epochs=2, v
                     workers=2, use_multiprocessing=False, shuffle=True, initial_epoch=0)
 
 # release all layers for training
-set_trainable(model) # set all layers trainable and recompile model
+set_trainable(model)  # set all layers trainable and recompile model
 
 # continue training
 model.fit_generator(generator=train_generator, steps_per_epoch=None, epochs=100, verbose=1, callbacks=None,
