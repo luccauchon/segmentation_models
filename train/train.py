@@ -12,6 +12,7 @@ parser.add_argument("-blbs", "--baseline_batch_size", dest="baseline_batch_size"
 parser.add_argument("-bs", "--batch_size", dest="batch_size", help="", type=int, required=False, default=4)
 parser.add_argument("-c", "--cat_names", dest="cat_names", help="specify coco categories to use", type=str, required=False, default=None)
 parser.add_argument("-d", "--depth", dest="depth", help="", type=int, required=True)
+parser.add_argument("-ds", "--dataset", dest="dataset", help="specify which datatset to use", type=str, required=True, choices=['coco2017', 'amateur'])
 parser.add_argument("-e", "--epoch", dest="epoch", help="number of epochs", type=int, required=False, default=5)
 parser.add_argument("-ex", "--experience_id", dest="experience_id", help="name of the directory where the results are saved", type=str, required=True)
 parser.add_argument("-g", "--gpu_id", dest="gpu_id", help="specify the gpu to use", type=int, choices=range(4), required=True)
@@ -92,23 +93,43 @@ if not os.path.isdir(model_dir):
     os.mkdir(model_dir)
 model_checkpoint_prefix = architecture + '.' + backbone + '.w' + str(dim_image[0]) + '.h' + str(dim_image[1]) + '.d' + str(dim_image[2]) + '.bs' + str(batch_size)
 nb_epoch = args.epoch
+dataset = args.dataset
 
 ###############################################################################
 # Configuration de la source des donnees.
 ###############################################################################
 data_dir_source_coco = '/gpfs/home/cj3272/56/APPRANTI/cj3272/dataset/coco/'
+data_dir_source_amateur_nt = 'G:/AMATEUR/segmentation/22FEV2019/GEN_segmentation/'
+data_dir_source_amateur = '/gpfs/groups/gc014a/AMATEUR/dataset/segmentation/22FEV2019/GEN_segmentation/'
 
-if 1 == precompiled:
+if 1 == precompiled and dataset == 'coco2017':
     train_generator = COCODataFramePreCompiledDataGenerator(data_dir_source_coco=data_dir_source_coco, batch_size=batch_size, dim_image=dim_image,
                                                             data_type_source_coco='train2017',
                                                             baseline_batch_size=baseline_batch_size)
     val_generator = COCODataFramePreCompiledDataGenerator(data_dir_source_coco=data_dir_source_coco, batch_size=batch_size, dim_image=dim_image, data_type_source_coco='val2017',
                                                           baseline_batch_size=baseline_batch_size)
-else:
+elif 0 == precompiled and dataset == 'coco2017':
     train_generator = COCODataFrameDataGenerator(data_dir_source_coco=data_dir_source_coco, batch_size=batch_size, dim_image=dim_image, data_type_source_coco='train2017',
                                                  cat_names=cat_names)
     val_generator = COCODataFrameDataGenerator(data_dir_source_coco=data_dir_source_coco, batch_size=batch_size, dim_image=dim_image, data_type_source_coco='val2017',
                                                cat_names=cat_names)
+elif dataset == 'amateur':
+    class_ids = [0, 1]
+    import luccauchon.data.Generators as generators
+
+    if os.name == 'nt':
+        df_train, df_val = generators.amateur_train_val_split(dataset_dir=data_dir_source_amateur_nt, class_ids=class_ids, number_elements=None)
+    else:
+        df_train, df_val = generators.amateur_train_val_split(dataset_dir=data_dir_source_amateur, class_ids=class_ids,number_elements=None)
+    from luccauchon.data.Generators import AmateurDataFrameDataGenerator
+
+    train_generator = AmateurDataFrameDataGenerator(df_train, classes_id=class_ids, batch_size=batch_size, dim_image=dim_image)
+    train_generator.cat_ids = class_ids
+    val_generator = AmateurDataFrameDataGenerator(df_val, classes_id=class_ids, batch_size=batch_size, dim_image=dim_image)
+    val_generator.cat_ids = class_ids
+
+else:
+    assert False
 number_of_classes = len(train_generator.cat_ids)
 assert len(train_generator.cat_ids) == len(val_generator.cat_ids)
 
@@ -140,7 +161,7 @@ model.compile('Adam', loss=cce_jaccard_loss, metrics=[jaccard_score])
 model.summary()
 LOG.info('GPU=(' + str(gpu_id) + ')  Architecture=' + architecture + '  Backbone=' + backbone + '  dim_image=' + str(dim_image) + '  batch_size/baseline_batch_size=(' + str(
     batch_size) + '/' + str(baseline_batch_size) + ')  model_checkpoint_prefix=(' + str(model_checkpoint_prefix) + ')  use precompiled dataset=' + str(
-    precompiled) + '  #_threads=' + str(nb_threads) + '  models_directory=' + model_dir)
+    precompiled) + '  #_threads=' + str(nb_threads) + '  models_directory=' + model_dir + '  dataset=' + dataset)
 
 # pretrain model decoder
 model.fit_generator(generator=train_generator, steps_per_epoch=None, epochs=2, verbose=1, callbacks=None,
@@ -152,7 +173,7 @@ set_trainable(model)  # set all layers trainable and recompile model
 model.summary()
 LOG.info('GPU=(' + str(gpu_id) + ')  Architecture=' + architecture + '  Backbone=' + backbone + '  dim_image=' + str(dim_image) + '  batch_size/baseline_batch_size=(' + str(
     batch_size) + '/' + str(baseline_batch_size) + ')  model_checkpoint_prefix=(' + str(model_checkpoint_prefix) + ')  use precompiled dataset=' + str(
-    precompiled) + '  #_threads=' + str(nb_threads) + '  models_directory=' + model_dir)
+    precompiled) + '  #_threads=' + str(nb_threads) + '  models_directory=' + model_dir + '  dataset=' + dataset)
 
 # continue training
 model.fit_generator(generator=train_generator, steps_per_epoch=None, epochs=nb_epoch, verbose=1, callbacks=[modelCheckpoint, reduceLROnPlateau],
