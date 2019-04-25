@@ -23,7 +23,7 @@ parser.add_argument("-he", "--height", dest="height", help="", type=int, require
 parser.add_argument("-p", "--precompiled", dest="precompiled", help="whether or not use a precompiled dataset", type=int, choices=range(1), required=False, default=0)
 parser.add_argument("-t", "--temp_dir", dest="temp_dir", help="specify temporary directory to use", type=str, required=True)
 parser.add_argument("-tr", "--threads", dest="threads", help="specify number of threads to use by keras to process input data", type=int, required=True, default=0,
-                    choices=[0, 1, 2, 3, 4, 5, 6, 7, 8])
+                    choices=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16])
 parser.add_argument("-w", "--width", dest="width", help="", type=int, required=True)
 
 args = parser.parse_args()
