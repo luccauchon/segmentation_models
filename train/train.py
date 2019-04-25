@@ -95,6 +95,8 @@ if args.cat_names is not None:
 model_dir = './logs/' + args.experience_id + '/'
 if not os.path.isdir(model_dir):
     os.mkdir(model_dir)
+else:
+    assert False, 'Directory already exists: ' + model_dir
 nb_epoch = args.epoch
 dataset = args.dataset
 
