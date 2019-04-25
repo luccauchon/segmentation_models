@@ -7,7 +7,10 @@ from argparse import ArgumentParser
 
 parser = ArgumentParser()
 parser.add_argument("-a", "--architecture", dest="architecture", help="specify the architecture", type=str, choices=['FPN', 'PSP'], required=True)
-parser.add_argument("-b", "--backbone", dest="backbone", help="specify the backbone", type=str, required=True)
+parser.add_argument("-b", "--backbone", dest="backbone", help="specify the backbone", type=str, required=True,
+                    choices=['vgg16', 'vgg19', 'resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152', 'seresnet18', 'seresnet34', 'seresnet50', 'seresnet101', 'seresnet152',
+                             'resnext50', 'resnext101', 'seresnext50', 'seresnext101', 'senet154', 'densenet121', 'densenet169', 'densenet201', 'inceptionv3', 'inceptionresnetv2',
+                             'mobilenet', 'mobilenetv2'])
 parser.add_argument("-blbs", "--baseline_batch_size", dest="baseline_batch_size", help="batch_size of precomiled dataset", type=int, required=False, default=6)
 parser.add_argument("-bs", "--batch_size", dest="batch_size", help="", type=int, required=False, default=4)
 parser.add_argument("-c", "--cat_names", dest="cat_names", help="specify coco categories to use", type=str, required=False, default=None)
@@ -19,7 +22,8 @@ parser.add_argument("-g", "--gpu_id", dest="gpu_id", help="specify the gpu to us
 parser.add_argument("-he", "--height", dest="height", help="", type=int, required=True)
 parser.add_argument("-p", "--precompiled", dest="precompiled", help="whether or not use a precompiled dataset", type=int, choices=range(1), required=False, default=0)
 parser.add_argument("-t", "--temp_dir", dest="temp_dir", help="specify temporary directory to use", type=str, required=True)
-parser.add_argument("-tr", "--threads", dest="threads", help="specify number of threads to use by keras to process input data", type=int, required=False, default=0)
+parser.add_argument("-tr", "--threads", dest="threads", help="specify number of threads to use by keras to process input data", type=int, required=True, default=0,
+                    choices=[0, 1, 2, 3, 4, 5, 6, 7, 8])
 parser.add_argument("-w", "--width", dest="width", help="", type=int, required=True)
 
 args = parser.parse_args()
@@ -91,9 +95,11 @@ if args.cat_names is not None:
 model_dir = './logs/' + args.experience_id + '/'
 if not os.path.isdir(model_dir):
     os.mkdir(model_dir)
-model_checkpoint_prefix = architecture + '.' + backbone + '.w' + str(dim_image[0]) + '.h' + str(dim_image[1]) + '.d' + str(dim_image[2]) + '.bs' + str(batch_size)
 nb_epoch = args.epoch
 dataset = args.dataset
+
+model_checkpoint_prefix = architecture + '.' + backbone + '.w' + str(dim_image[0]) + '.h' + str(dim_image[1]) + '.d' + str(dim_image[2]) + '.bs' + str(batch_size) + '.' + str(
+    dataset)
 
 ###############################################################################
 # Configuration de la source des donnees.
@@ -120,7 +126,7 @@ elif dataset == 'amateur':
     if os.name == 'nt':
         df_train, df_val = generators.amateur_train_val_split(dataset_dir=data_dir_source_amateur_nt, class_ids=class_ids, number_elements=None)
     else:
-        df_train, df_val = generators.amateur_train_val_split(dataset_dir=data_dir_source_amateur, class_ids=class_ids,number_elements=None)
+        df_train, df_val = generators.amateur_train_val_split(dataset_dir=data_dir_source_amateur, class_ids=class_ids, number_elements=None)
     from luccauchon.data.Generators import AmateurDataFrameDataGenerator
 
     train_generator = AmateurDataFrameDataGenerator(df_train, classes_id=class_ids, batch_size=batch_size, dim_image=dim_image)
