@@ -197,7 +197,7 @@ if os.name == 'nt':
         batch_size) + '/' + str(baseline_batch_size) + ')  model_checkpoint_prefix=(' + str(model_checkpoint_prefix) + ')  use coco2017 precompiled dataset=' + str(
         precompiled) + '  #_threads=' + str(nb_threads) + '  models_directory=' + model_dir + '  dataset=' + dataset)
 
-    model.fit_generator(generator=train_generator, steps_per_epoch=None, epochs=2, verbose=1, callbacks=None,
+    model.fit_generator(generator=train_generator, steps_per_epoch=None, epochs=nb_epoch, verbose=1, callbacks=None,
                         validation_data=val_generator, validation_steps=None, class_weight=None, max_queue_size=10,
                         workers=0, use_multiprocessing=False, shuffle=True, initial_epoch=0)
 else:
@@ -206,7 +206,7 @@ else:
         precompiled) + '  #_threads=' + str(nb_threads) + '  models_directory=' + model_dir + '  dataset=' + dataset)
 
     # pretrain model decoder
-    model.fit_generator(generator=train_generator, steps_per_epoch=None, epochs=nb_epoch, verbose=1, callbacks=None,
+    model.fit_generator(generator=train_generator, steps_per_epoch=None, epochs=2, verbose=1, callbacks=None,
                         validation_data=val_generator, validation_steps=None, class_weight=None, max_queue_size=10,
                         workers=nb_threads, use_multiprocessing=True, shuffle=True, initial_epoch=0)
 
