@@ -14,7 +14,7 @@ parser.add_argument("-b", "--backbone", dest="backbone", help="specify the backb
 parser.add_argument("-blbs", "--baseline_batch_size", dest="baseline_batch_size", help="batch_size of precomiled dataset", type=int, required=False, default=6)
 parser.add_argument("-bs", "--batch_size", dest="batch_size", help="", type=int, required=False, default=4)
 parser.add_argument("-c", "--cat_names", dest="cat_names", help="specify coco categories to use", type=str, required=False, default=None)
-parser.add_argument("-ca", "--classes_id_amateur", dest="classes_id_amateur", help="specify amateur categories to use", type=str, required=False, default='0', choices=['0', '1'])
+parser.add_argument("-ca", "--classes_id_amateur", dest="classes_id_amateur", help="specify amateur categories to use", type=str, required=False, default='1', choices=['1', '2'])
 parser.add_argument("-d", "--depth", dest="depth", help="", type=int, required=True)
 parser.add_argument("-ds", "--dataset", dest="dataset", help="specify which datatset to use", type=str, required=True, choices=['coco2017', 'amateur'])
 parser.add_argument("-e", "--epoch", dest="epoch", help="number of epochs", type=int, required=False, default=5)
@@ -23,7 +23,7 @@ parser.add_argument("-g", "--gpu_id", dest="gpu_id", help="specify the gpu to us
 parser.add_argument("-he", "--height", dest="height", help="", type=int, required=True)
 parser.add_argument("-p", "--precompiled", dest="precompiled", help="whether or not use a precompiled dataset", type=int, choices=range(1), required=False, default=0)
 parser.add_argument("-t", "--temp_dir", dest="temp_dir", help="specify temporary directory to use", type=str, required=True)
-parser.add_argument("-tr", "--threads", dest="threads", help="specify number of threads to use by keras to process input data", type=int, required=True, default=0,
+parser.add_argument("-tr", "--threads", dest="threads", help="specify number of threads to use by keras to process input data", type=int, required=False, default=0,
                     choices=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16])
 parser.add_argument("-w", "--width", dest="width", help="", type=int, required=True)
 
@@ -34,7 +34,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu_id)
 import luccauchon.data.__MYENV__ as E
 import logging
 
-E.APPLICATION_LOG_LEVEL = logging.DEBUG
+E.APPLICATION_LOG_LEVEL = logging.INFO
 
 LOG = E.setup_logger(logger_name=__name__, _level=E.APPLICATION_LOG_LEVEL)
 import sys
@@ -114,7 +114,7 @@ model_checkpoint_prefix = architecture + '.' + backbone + '.w' + str(dim_image[0
 # Configuration de la source des donnees.
 ###############################################################################
 data_dir_source_coco = '/gpfs/home/cj3272/56/APPRANTI/cj3272/dataset/coco/'
-data_dir_source_amateur_nt = 'G:/AMATEUR/segmentation/22FEV2019/GEN_segmentation/'
+data_dir_source_amateur_nt = 'F:/AMATEUR/segmentation/22FEV2019/GEN_segmentation/'
 data_dir_source_amateur = '/gpfs/groups/gc014a/AMATEUR/dataset/segmentation/22FEV2019/GEN_segmentation/'
 
 if 1 == precompiled and dataset == 'coco2017':
@@ -132,7 +132,7 @@ elif dataset == 'amateur':
     import luccauchon.data.Generators as generators
 
     if os.name == 'nt':
-        df_train, df_val = generators.amateur_train_val_split(dataset_dir=data_dir_source_amateur_nt, class_ids=classes_id_amateur, number_elements=None)
+        df_train, df_val = generators.amateur_train_val_split(dataset_dir=data_dir_source_amateur_nt, class_ids=classes_id_amateur, number_elements=64)
     else:
         df_train, df_val = generators.amateur_train_val_split(dataset_dir=data_dir_source_amateur, class_ids=classes_id_amateur, number_elements=None)
     from luccauchon.data.Generators import AmateurDataFrameDataGenerator
@@ -163,11 +163,15 @@ reduceLROnPlateau = keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor
 Some times, it is useful to train only randomly initialized decoder in order not to damage weights of properly trained encoder with huge gradients during first steps of training. 
 In this case, all you need is just pass freeze_encoder = True argument while initializing the model.
 '''
+freeze_encoder = True
+if os.name == 'nt':
+    freeze_encoder = False
+
 if number_of_classes > 1:
     if architecture == 'PSP':
-        model = PSPNet(backbone, input_shape=dim_image, classes=number_of_classes, encoder_weights='imagenet', activation='softmax', freeze_encoder=True)
+        model = PSPNet(backbone, input_shape=dim_image, classes=number_of_classes, encoder_weights='imagenet', activation='softmax', freeze_encoder=freeze_encoder)
     elif architecture == 'FPN':
-        model = FPN(backbone, input_shape=dim_image, classes=number_of_classes, encoder_weights='imagenet', activation='softmax', freeze_encoder=True)
+        model = FPN(backbone, input_shape=dim_image, classes=number_of_classes, encoder_weights='imagenet', activation='softmax', freeze_encoder=freeze_encoder)
     else:
         assert False
     model.compile('Adam', loss='categorical_crossentropy', metrics=['categorical_accuracy'])
@@ -175,36 +179,45 @@ if number_of_classes > 1:
 else:
     assert 1 == number_of_classes
     if architecture == 'PSP':
-        model = PSPNet(backbone, input_shape=dim_image, classes=1, encoder_weights='imagenet', activation='sigmoid', freeze_encoder=True)
+        model = PSPNet(backbone, input_shape=dim_image, classes=1, encoder_weights='imagenet', activation='sigmoid', freeze_encoder=freeze_encoder)
     elif architecture == 'FPN':
-        model = FPN(backbone, input_shape=dim_image, classes=1, encoder_weights='imagenet', activation='sigmoid', freeze_encoder=True)
+        model = FPN(backbone, input_shape=dim_image, classes=1, encoder_weights='imagenet', activation='sigmoid', freeze_encoder=freeze_encoder)
     elif architecture == 'Linknet':
-        model = Linknet(backbone, input_shape=dim_image, classes=1, encoder_weights='imagenet', activation='sigmoid', freeze_encoder=True)
+        model = Linknet(backbone, input_shape=dim_image, classes=1, encoder_weights='imagenet', activation='sigmoid', freeze_encoder=freeze_encoder)
     elif architecture == 'Unet':
-        model = Unet(backbone, input_shape=dim_image, classes=1, encoder_weights='imagenet', activation='sigmoid', freeze_encoder=True)
+        model = Unet(backbone, input_shape=dim_image, classes=1, encoder_weights='imagenet', activation='sigmoid', freeze_encoder=freeze_encoder)
     else:
         assert False
     # model.compile('Adam', loss='binary_crossentropy', metrics=['binary_accuracy'])
     model.compile('Adam', loss='jaccard_distance_l', metrics=['iou_score'])
     model.summary()
 
-LOG.info('GPU=(' + str(gpu_id) + ')  Architecture=' + architecture + '  Backbone=' + backbone + '  dim_image=' + str(dim_image) + '  batch_size/baseline_batch_size=(' + str(
-    batch_size) + '/' + str(baseline_batch_size) + ')  model_checkpoint_prefix=(' + str(model_checkpoint_prefix) + ')  use coco2017 precompiled dataset=' + str(
-    precompiled) + '  #_threads=' + str(nb_threads) + '  models_directory=' + model_dir + '  dataset=' + dataset)
+if os.name == 'nt':
+    LOG.info('GPU=(' + str(gpu_id) + ')  Architecture=' + architecture + '  Backbone=' + backbone + '  dim_image=' + str(dim_image) + '  batch_size/baseline_batch_size=(' + str(
+        batch_size) + '/' + str(baseline_batch_size) + ')  model_checkpoint_prefix=(' + str(model_checkpoint_prefix) + ')  use coco2017 precompiled dataset=' + str(
+        precompiled) + '  #_threads=' + str(nb_threads) + '  models_directory=' + model_dir + '  dataset=' + dataset)
 
-# pretrain model decoder
-model.fit_generator(generator=train_generator, steps_per_epoch=None, epochs=2, verbose=1, callbacks=None,
-                    validation_data=val_generator, validation_steps=None, class_weight=None, max_queue_size=10,
-                    workers=nb_threads, use_multiprocessing=True, shuffle=True, initial_epoch=0)
+    model.fit_generator(generator=train_generator, steps_per_epoch=None, epochs=2, verbose=1, callbacks=None,
+                        validation_data=val_generator, validation_steps=None, class_weight=None, max_queue_size=10,
+                        workers=0, use_multiprocessing=False, shuffle=True, initial_epoch=0)
+else:
+    LOG.info('GPU=(' + str(gpu_id) + ')  Architecture=' + architecture + '  Backbone=' + backbone + '  dim_image=' + str(dim_image) + '  batch_size/baseline_batch_size=(' + str(
+        batch_size) + '/' + str(baseline_batch_size) + ')  model_checkpoint_prefix=(' + str(model_checkpoint_prefix) + ')  use coco2017 precompiled dataset=' + str(
+        precompiled) + '  #_threads=' + str(nb_threads) + '  models_directory=' + model_dir + '  dataset=' + dataset)
 
-# release all layers for training
-set_trainable(model)  # set all layers trainable and recompile model
-model.summary()
-LOG.info('GPU=(' + str(gpu_id) + ')  Architecture=' + architecture + '  Backbone=' + backbone + '  dim_image=' + str(dim_image) + '  batch_size/baseline_batch_size=(' + str(
-    batch_size) + '/' + str(baseline_batch_size) + ')  model_checkpoint_prefix=(' + str(model_checkpoint_prefix) + ')  use coco2017 precompiled dataset=' + str(
-    precompiled) + '  #_threads=' + str(nb_threads) + '  models_directory=' + model_dir + '  dataset=' + dataset)
+    # pretrain model decoder
+    model.fit_generator(generator=train_generator, steps_per_epoch=None, epochs=2, verbose=1, callbacks=None,
+                        validation_data=val_generator, validation_steps=None, class_weight=None, max_queue_size=10,
+                        workers=nb_threads, use_multiprocessing=True, shuffle=True, initial_epoch=0)
 
-# continue training
-model.fit_generator(generator=train_generator, steps_per_epoch=None, epochs=nb_epoch, verbose=1, callbacks=[modelCheckpoint, reduceLROnPlateau],
-                    validation_data=val_generator, validation_steps=None, class_weight=None, max_queue_size=10,
-                    workers=nb_threads, use_multiprocessing=True, shuffle=True, initial_epoch=0)
+    # release all layers for training
+    set_trainable(model)  # set all layers trainable and recompile model
+    model.summary()
+    LOG.info('GPU=(' + str(gpu_id) + ')  Architecture=' + architecture + '  Backbone=' + backbone + '  dim_image=' + str(dim_image) + '  batch_size/baseline_batch_size=(' + str(
+        batch_size) + '/' + str(baseline_batch_size) + ')  model_checkpoint_prefix=(' + str(model_checkpoint_prefix) + ')  use coco2017 precompiled dataset=' + str(
+        precompiled) + '  #_threads=' + str(nb_threads) + '  models_directory=' + model_dir + '  dataset=' + dataset)
+
+    # continue training
+    model.fit_generator(generator=train_generator, steps_per_epoch=None, epochs=nb_epoch, verbose=1, callbacks=[modelCheckpoint, reduceLROnPlateau],
+                        validation_data=val_generator, validation_steps=None, class_weight=None, max_queue_size=10,
+                        workers=nb_threads, use_multiprocessing=True, shuffle=True, initial_epoch=0)
