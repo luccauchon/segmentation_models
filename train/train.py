@@ -6,7 +6,7 @@ import sys
 from argparse import ArgumentParser
 
 parser = ArgumentParser()
-parser.add_argument("-a", "--architecture", dest="architecture", help="specify the architecture", type=str, choices=['FPN', 'PSP'], required=True)
+parser.add_argument("-a", "--architecture", dest="architecture", help="specify the architecture", type=str, choices=['FPN', 'Linknet', 'PSP', 'Unet'], required=True)
 parser.add_argument("-b", "--backbone", dest="backbone", help="specify the backbone", type=str, required=True,
                     choices=['vgg16', 'vgg19', 'resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152', 'seresnet18', 'seresnet34', 'seresnet50', 'seresnet101', 'seresnet152',
                              'resnext50', 'resnext101', 'seresnext50', 'seresnext101', 'senet154', 'densenet121', 'densenet169', 'densenet201', 'inceptionv3', 'inceptionresnetv2',
@@ -14,6 +14,7 @@ parser.add_argument("-b", "--backbone", dest="backbone", help="specify the backb
 parser.add_argument("-blbs", "--baseline_batch_size", dest="baseline_batch_size", help="batch_size of precomiled dataset", type=int, required=False, default=6)
 parser.add_argument("-bs", "--batch_size", dest="batch_size", help="", type=int, required=False, default=4)
 parser.add_argument("-c", "--cat_names", dest="cat_names", help="specify coco categories to use", type=str, required=False, default=None)
+parser.add_argument("-ca", "--classes_id_amateur", dest="classes_id_amateur", help="specify amateur categories to use", type=str, required=False, default='0', choices=['0', '1'])
 parser.add_argument("-d", "--depth", dest="depth", help="", type=int, required=True)
 parser.add_argument("-ds", "--dataset", dest="dataset", help="specify which datatset to use", type=str, required=True, choices=['coco2017', 'amateur'])
 parser.add_argument("-e", "--epoch", dest="epoch", help="number of epochs", type=int, required=False, default=5)
@@ -33,7 +34,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu_id)
 import luccauchon.data.__MYENV__ as E
 import logging
 
-E.APPLICATION_LOG_LEVEL = logging.INFO
+E.APPLICATION_LOG_LEVEL = logging.DEBUG
 
 LOG = E.setup_logger(logger_name=__name__, _level=E.APPLICATION_LOG_LEVEL)
 import sys
@@ -48,7 +49,10 @@ from luccauchon.data.Generators import COCODataFrameDataGenerator
 from luccauchon.data.Generators import COCODataFramePreCompiledDataGenerator
 from segmentation_models import PSPNet
 from segmentation_models import FPN
+from segmentation_models import Linknet
+from segmentation_models import Unet
 from segmentation_models.losses import cce_jaccard_loss
+from segmentation_models.losses import jaccard_distance_l
 from segmentation_models.metrics import jaccard_score
 from segmentation_models.utils import set_trainable
 
@@ -92,11 +96,14 @@ nb_threads = args.threads
 cat_names = None
 if args.cat_names is not None:
     cat_names = [item for item in args.cat_names.split(',')]
+classes_id_amateur = None
+if args.classes_id_amateur is not None:
+    classes_id_amateur = [int(item) for item in args.classes_id_amateur.split(',')]
 model_dir = './logs/' + args.experience_id + '/'
 if not os.path.isdir(model_dir):
     os.mkdir(model_dir)
 else:
-    assert False, 'Directory already exists: ' + model_dir
+    LOG.warn('Directory already exists: ' + model_dir)
 nb_epoch = args.epoch
 dataset = args.dataset
 
@@ -122,19 +129,18 @@ elif 0 == precompiled and dataset == 'coco2017':
     val_generator = COCODataFrameDataGenerator(data_dir_source_coco=data_dir_source_coco, batch_size=batch_size, dim_image=dim_image, data_type_source_coco='val2017',
                                                cat_names=cat_names)
 elif dataset == 'amateur':
-    class_ids = [0, 1]
     import luccauchon.data.Generators as generators
 
     if os.name == 'nt':
-        df_train, df_val = generators.amateur_train_val_split(dataset_dir=data_dir_source_amateur_nt, class_ids=class_ids, number_elements=None)
+        df_train, df_val = generators.amateur_train_val_split(dataset_dir=data_dir_source_amateur_nt, class_ids=classes_id_amateur, number_elements=None)
     else:
-        df_train, df_val = generators.amateur_train_val_split(dataset_dir=data_dir_source_amateur, class_ids=class_ids, number_elements=None)
+        df_train, df_val = generators.amateur_train_val_split(dataset_dir=data_dir_source_amateur, class_ids=classes_id_amateur, number_elements=None)
     from luccauchon.data.Generators import AmateurDataFrameDataGenerator
 
-    train_generator = AmateurDataFrameDataGenerator(df_train, classes_id=class_ids, batch_size=batch_size, dim_image=dim_image)
-    train_generator.cat_ids = class_ids
-    val_generator = AmateurDataFrameDataGenerator(df_val, classes_id=class_ids, batch_size=batch_size, dim_image=dim_image)
-    val_generator.cat_ids = class_ids
+    train_generator = AmateurDataFrameDataGenerator(df_train, classes_id=classes_id_amateur, batch_size=batch_size, dim_image=dim_image)
+    train_generator.cat_ids = classes_id_amateur
+    val_generator = AmateurDataFrameDataGenerator(df_val, classes_id=classes_id_amateur, batch_size=batch_size, dim_image=dim_image)
+    val_generator.cat_ids = classes_id_amateur
 
 else:
     assert False
@@ -150,23 +156,38 @@ modelCheckpoint = keras.callbacks.ModelCheckpoint(filepath=model_dir + model_che
                                                   monitor='val_loss',
                                                   verbose=0, save_best_only=False, save_weights_only=False,
                                                   mode='auto', period=1)
-reduceLROnPlateau = keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=7, verbose=1,
-                                                      mode='auto', min_delta=0.001, cooldown=0, min_lr=10e-7)
+reduceLROnPlateau = keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=3, verbose=1,
+                                                      mode='auto', min_delta=0.01, cooldown=0, min_lr=10e-7)
 
 ''' 
 Some times, it is useful to train only randomly initialized decoder in order not to damage weights of properly trained encoder with huge gradients during first steps of training. 
 In this case, all you need is just pass freeze_encoder = True argument while initializing the model.
 '''
-assert number_of_classes > 1
-if architecture == 'PSP':
-    model = PSPNet(backbone, input_shape=dim_image, classes=number_of_classes, encoder_weights='imagenet', activation='softmax', freeze_encoder=True)
-elif architecture == 'FPN':
-    model = FPN(backbone, input_shape=dim_image, classes=number_of_classes, encoder_weights='imagenet', activation='softmax', freeze_encoder=True)
+if number_of_classes > 1:
+    if architecture == 'PSP':
+        model = PSPNet(backbone, input_shape=dim_image, classes=number_of_classes, encoder_weights='imagenet', activation='softmax', freeze_encoder=True)
+    elif architecture == 'FPN':
+        model = FPN(backbone, input_shape=dim_image, classes=number_of_classes, encoder_weights='imagenet', activation='softmax', freeze_encoder=True)
+    else:
+        assert False
+    model.compile('Adam', loss='categorical_crossentropy', metrics=['categorical_accuracy'])
+    model.summary()
 else:
-    assert False
+    assert 1 == number_of_classes
+    if architecture == 'PSP':
+        model = PSPNet(backbone, input_shape=dim_image, classes=1, encoder_weights='imagenet', activation='sigmoid', freeze_encoder=True)
+    elif architecture == 'FPN':
+        model = FPN(backbone, input_shape=dim_image, classes=1, encoder_weights='imagenet', activation='sigmoid', freeze_encoder=True)
+    elif architecture == 'Linknet':
+        model = Linknet(backbone, input_shape=dim_image, classes=1, encoder_weights='imagenet', activation='sigmoid', freeze_encoder=True)
+    elif architecture == 'Unet':
+        model = Unet(backbone, input_shape=dim_image, classes=1, encoder_weights='imagenet', activation='sigmoid', freeze_encoder=True)
+    else:
+        assert False
+    # model.compile('Adam', loss='binary_crossentropy', metrics=['binary_accuracy'])
+    model.compile('Adam', loss='jaccard_distance_l', metrics=['iou_score'])
+    model.summary()
 
-model.compile('Adam', loss=cce_jaccard_loss, metrics=[jaccard_score])
-model.summary()
 LOG.info('GPU=(' + str(gpu_id) + ')  Architecture=' + architecture + '  Backbone=' + backbone + '  dim_image=' + str(dim_image) + '  batch_size/baseline_batch_size=(' + str(
     batch_size) + '/' + str(baseline_batch_size) + ')  model_checkpoint_prefix=(' + str(model_checkpoint_prefix) + ')  use coco2017 precompiled dataset=' + str(
     precompiled) + '  #_threads=' + str(nb_threads) + '  models_directory=' + model_dir + '  dataset=' + dataset)
