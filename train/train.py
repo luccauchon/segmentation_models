@@ -132,7 +132,7 @@ elif dataset == 'amateur':
     import luccauchon.data.Generators as generators
 
     if os.name == 'nt':
-        df_train, df_val = generators.amateur_train_val_split(dataset_dir=data_dir_source_amateur_nt, class_ids=classes_id_amateur, number_elements=64)
+        df_train, df_val = generators.amateur_train_val_split(dataset_dir=data_dir_source_amateur_nt, class_ids=classes_id_amateur, number_elements=None)
     else:
         df_train, df_val = generators.amateur_train_val_split(dataset_dir=data_dir_source_amateur, class_ids=classes_id_amateur, number_elements=None)
     from luccauchon.data.Generators import AmateurDataFrameDataGenerator
@@ -206,7 +206,7 @@ else:
         precompiled) + '  #_threads=' + str(nb_threads) + '  models_directory=' + model_dir + '  dataset=' + dataset)
 
     # pretrain model decoder
-    model.fit_generator(generator=train_generator, steps_per_epoch=None, epochs=2, verbose=1, callbacks=None,
+    model.fit_generator(generator=train_generator, steps_per_epoch=None, epochs=nb_epoch, verbose=1, callbacks=None,
                         validation_data=val_generator, validation_steps=None, class_weight=None, max_queue_size=10,
                         workers=nb_threads, use_multiprocessing=True, shuffle=True, initial_epoch=0)
 
