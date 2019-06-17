@@ -38,6 +38,7 @@ Table of Contents
  - `Installation`_
  - `Documentation`_
  - `Change log`_
+ - `Citing`_
  - `License`_
  
 Quick start
@@ -56,16 +57,30 @@ Depending on the task, you can change the network architecture by choosing backb
 
     model = Unet('resnet34', encoder_weights='imagenet')
 
-Change number of output classes in the model:
+Change number of output classes in the model (choose your case):
 
 .. code:: python
-
+    
+    # binary segmentation (this parameters are default when you call Unet('resnet34')
+    model = Unet('resnet34', classes=1, activation='sigmoid')
+    
+.. code:: python
+    
+    # multiclass segmentation with non overlapping class masks (your classes + background)
     model = Unet('resnet34', classes=3, activation='softmax')
+    
+.. code:: python
+    
+    # multiclass segmentation with independent overlapping/non-overlapping class masks
+    model = Unet('resnet34', classes=3, activation='sigmoid')
+    
     
 Change input shape of the model:
 
 .. code:: python
-
+    
+    # if you set input channels not equal to 3, you have to set encoder_weights=None
+    # how to handle such case with encoder_weights='imagenet' described in docs
     model = Unet('resnet34', input_shape=(None, None, 6), encoder_weights=None)
    
 Simple training pipeline
@@ -93,6 +108,8 @@ Simple training pipeline
    model.compile('Adam', loss=bce_jaccard_loss, metrics=[iou_score])
    
    # fit model
+   # if you use data generator use model.fit_generator(...) instead of model.fit(...)
+   # more about `fit_generator` here: https://keras.io/models/sequential/#fit_generator
    model.fit(
        x=x_train, 
        y=y_train, 
@@ -138,19 +155,20 @@ PSPNet        FPN
 
 .. table:: 
 
-    ===========  ===== 
-    Type         Names
-    ===========  =====
-    VGG          ``'vgg16' 'vgg19'``
-    ResNet       ``'resnet18' 'resnet34' 'resnet50' 'resnet101' 'resnet152'``
-    SE-ResNet    ``'seresnet18' 'seresnet34' 'seresnet50' 'seresnet101' 'seresnet152'``
-    ResNeXt      ``'resnext50' 'resnext101'``
-    SE-ResNeXt   ``'seresnext50' 'seresnext101'``
-    SENet154     ``'senet154'``
-    DenseNet     ``'densenet121' 'densenet169' 'densenet201'`` 
-    Inception    ``'inceptionv3' 'inceptionresnetv2'``
-    MobileNet    ``'mobilenet' 'mobilenetv2'``
-    ===========  =====
+    =============  ===== 
+    Type           Names
+    =============  =====
+    VGG            ``'vgg16' 'vgg19'``
+    ResNet         ``'resnet18' 'resnet34' 'resnet50' 'resnet101' 'resnet152'``
+    SE-ResNet      ``'seresnet18' 'seresnet34' 'seresnet50' 'seresnet101' 'seresnet152'``
+    ResNeXt        ``'resnext50' 'resnext101'``
+    SE-ResNeXt     ``'seresnext50' 'seresnext101'``
+    SENet154       ``'senet154'``
+    DenseNet       ``'densenet121' 'densenet169' 'densenet201'`` 
+    Inception      ``'inceptionv3' 'inceptionresnetv2'``
+    MobileNet      ``'mobilenet' 'mobilenetv2'``
+    EfficientNet   ``'efficientnetb0' 'efficientnetb1' 'efficientnetb2' 'efficientnetb3'``
+    =============  =====
 
 .. epigraph::
     All backbones have weights trained on 2012 ILSVRC ImageNet dataset (``encoder_weights='imagenet'``). 
@@ -187,6 +205,20 @@ Docs <https://segmentation-models.readthedocs.io/en/latest/>`__
 Change Log
 ~~~~~~~~~~
 To see important changes between versions look at CHANGELOG.md_
+
+Citing
+~~~~~~~~
+
+.. code::
+
+    @misc{Yakubovskiy:2019,
+      Author = {Pavel Yakubovskiy},
+      Title = {Segmentation Models},
+      Year = {2019},
+      Publisher = {GitHub},
+      Journal = {GitHub repository},
+      Howpublished = {\url{https://github.com/qubvel/segmentation_models}}
+    } 
 
 License
 ~~~~~~~
