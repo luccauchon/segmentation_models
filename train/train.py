@@ -4,6 +4,7 @@
 import os
 import sys
 from argparse import ArgumentParser
+from multiprocessing import freeze_support
 
 parser = ArgumentParser()
 parser.add_argument("-a", "--architecture", dest="architecture", help="specify the architecture", type=str, choices=['FPN', 'Linknet', 'PSP', 'Unet'], required=True)
@@ -31,12 +32,15 @@ args = parser.parse_args()
 
 os.environ['basedir_a'] = args.temp_dir
 os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu_id)
+
+freeze_support()
+
 import luccauchon.data.__MYENV__ as E
 import logging
-
 E.APPLICATION_LOG_LEVEL = logging.INFO
 
-LOG = E.setup_logger(logger_name=__name__, _level=E.APPLICATION_LOG_LEVEL)
+from loguru import logger
+
 import sys
 
 sys.path.append('../')  # To find local version of the library
@@ -53,7 +57,6 @@ from segmentation_models import Linknet
 from segmentation_models import Unet
 from segmentation_models.losses import cce_jaccard_loss
 from segmentation_models.losses import jaccard_distance_l
-from segmentation_models.metrics import jaccard_score
 from segmentation_models.utils import set_trainable
 
 ###############################################################################
@@ -74,13 +77,13 @@ keras.backend.tensorflow_backend.set_session(get_session())
 ###############################################################################
 # Information des librairies.
 ###############################################################################
-LOG.info('keras.__version__=' + str(keras.__version__))
-LOG.info('tf.__version__=' + str(tf.__version__))
-LOG.info('PIL.__version__=' + str(PIL.__version__))
-LOG.info('np.__version__=' + str(np.__version__))
-LOG.info('scipy.__version__=' + str(scipy.__version__))
-LOG.info('Using GPU ' + str(os.environ["CUDA_VISIBLE_DEVICES"]) + '  Good luck... you\'ll need it...')
-LOG.info('Using conda env: ' + str(Path(sys.executable).as_posix().split('/')[-3]) + ' [' + str(Path(sys.executable).as_posix()) + ']')
+logger.info('keras.__version__=' + str(keras.__version__))
+logger.info('tf.__version__=' + str(tf.__version__))
+logger.info('PIL.__version__=' + str(PIL.__version__))
+logger.info('np.__version__=' + str(np.__version__))
+logger.info('scipy.__version__=' + str(scipy.__version__))
+logger.info('Using GPU ' + str(os.environ["CUDA_VISIBLE_DEVICES"]) + '  Good luck... you\'ll need it...')
+logger.info('Using conda env: ' + str(Path(sys.executable).as_posix().split('/')[-3]) + ' [' + str(Path(sys.executable).as_posix()) + ']')
 
 ###############################################################################
 # Configuration de l'entrainement.
@@ -103,7 +106,7 @@ model_dir = './logs/' + args.experience_id + '/'
 if not os.path.isdir(model_dir):
     os.mkdir(model_dir)
 else:
-    LOG.warn('Directory already exists: ' + model_dir)
+    logger.warning('Directory already exists: ' + model_dir)
 nb_epoch = args.epoch
 dataset = args.dataset
 
@@ -193,7 +196,7 @@ else:
     model.summary()
 
 if os.name == 'nt':
-    LOG.info('GPU=(' + str(gpu_id) + ')  Architecture=' + architecture + '  Backbone=' + backbone + '  dim_image=' + str(dim_image) + '  batch_size/baseline_batch_size=(' + str(
+    logger.info('GPU=(' + str(gpu_id) + ')  Architecture=' + architecture + '  Backbone=' + backbone + '  dim_image=' + str(dim_image) + '  batch_size/baseline_batch_size=(' + str(
         batch_size) + '/' + str(baseline_batch_size) + ')  model_checkpoint_prefix=(' + str(model_checkpoint_prefix) + ')  use coco2017 precompiled dataset=' + str(
         precompiled) + '  #_threads=' + str(nb_threads) + '  models_directory=' + model_dir + '  dataset=' + dataset)
 
@@ -201,7 +204,7 @@ if os.name == 'nt':
                         validation_data=val_generator, validation_steps=None, class_weight=None, max_queue_size=10,
                         workers=0, use_multiprocessing=False, shuffle=True, initial_epoch=0)
 else:
-    LOG.info('GPU=(' + str(gpu_id) + ')  Architecture=' + architecture + '  Backbone=' + backbone + '  dim_image=' + str(dim_image) + '  batch_size/baseline_batch_size=(' + str(
+    logger.info('GPU=(' + str(gpu_id) + ')  Architecture=' + architecture + '  Backbone=' + backbone + '  dim_image=' + str(dim_image) + '  batch_size/baseline_batch_size=(' + str(
         batch_size) + '/' + str(baseline_batch_size) + ')  model_checkpoint_prefix=(' + str(model_checkpoint_prefix) + ')  use coco2017 precompiled dataset=' + str(
         precompiled) + '  #_threads=' + str(nb_threads) + '  models_directory=' + model_dir + '  dataset=' + dataset)
 
@@ -213,7 +216,7 @@ else:
     # release all layers for training
     set_trainable(model)  # set all layers trainable and recompile model
     model.summary()
-    LOG.info('GPU=(' + str(gpu_id) + ')  Architecture=' + architecture + '  Backbone=' + backbone + '  dim_image=' + str(dim_image) + '  batch_size/baseline_batch_size=(' + str(
+    logger.info('GPU=(' + str(gpu_id) + ')  Architecture=' + architecture + '  Backbone=' + backbone + '  dim_image=' + str(dim_image) + '  batch_size/baseline_batch_size=(' + str(
         batch_size) + '/' + str(baseline_batch_size) + ')  model_checkpoint_prefix=(' + str(model_checkpoint_prefix) + ')  use coco2017 precompiled dataset=' + str(
         precompiled) + '  #_threads=' + str(nb_threads) + '  models_directory=' + model_dir + '  dataset=' + dataset)
 
